@@ -114,12 +114,12 @@ int ard_spline_generate(ArdSpline *spline, const ArdSplinePva *start, const ArdS
         // 0.0
         retval = 1;
     }
-    else if ((duration >= ARD_SPLINE_MINIMUM_DURATION) &&
-             (fabs(displacement) < ARD_SPLINE_TOLERANCE))
-    {
-        // must have same position separation if duration greater than minimum
-        retval = 2;
-    }
+    // else if ((duration >= ARD_SPLINE_MINIMUM_DURATION) &&
+    //          (fabs(displacement) < ARD_SPLINE_TOLERANCE))
+    // {
+    //     // must have same position separation if duration greater than minimum
+    //     retval = 2;
+    // }
     else if (duration < ARD_SPLINE_MINIMUM_DURATION)
     {
         // no duration
@@ -314,7 +314,6 @@ double ard_spline_evaluate_position(const ArdSpline *spline, double t)
 
     return 0.0;
 }
-
 
 int ard_spline_traj_generate(ArdSplineTrajectory *traj, const ArdSplinePva *start, const ArdSplinePva *end,
                              double duration, const uint16_t step_size, const eArdSplineType type) {

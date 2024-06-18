@@ -35,7 +35,7 @@ extern "C"
      *
      */
 
-#define ARD_SPLINE_MINIMUM_DURATION 0.1
+#define ARD_SPLINE_MINIMUM_DURATION 0.07
 #define ARD_SPLINE_TOLERANCE 1.0e-6
 
     typedef struct ArdSplinePva

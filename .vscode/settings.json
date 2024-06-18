@@ -1,0 +1,13 @@
+{
+    "files.associations": {
+        "ard_encoder.h": "c",
+        "array": "cpp",
+        "string": "cpp",
+        "deque": "cpp",
+        "unordered_map": "cpp",
+        "unordered_set": "cpp",
+        "vector": "cpp",
+        "initializer_list": "cpp",
+        "regex": "cpp"
+    }
+}

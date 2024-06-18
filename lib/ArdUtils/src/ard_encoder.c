@@ -1,5 +1,3 @@
-
-
 #include "ard_encoder.h"
 
 static int32_t pow2_int(uint8_t n)

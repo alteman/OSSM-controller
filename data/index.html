@@ -1,0 +1,238 @@
+<!--
+  FSWebServer - Example Index Page
+  Copyright (c) 2015 Hristo Gochkov. All rights reserved.
+  This file is part of the ESP8266WebServer library for Arduino environment.
+
+  This library is free software; you can redistribute it and/or
+  modify it under the terms of the GNU Lesser General Public
+  License as published by the Free Software Foundation; either
+  version 2.1 of the License, or (at your option) any later version.
+  This library is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  Lesser General Public License for more details.
+  You should have received a copy of the GNU Lesser General Public
+  License along with this library; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+-->
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>COCK🍆</title>
+    <style type="text/css">
+    .slider {
+    -webkit-appearance: none;
+    margin: 0 auto;
+    width: 100%;
+    height: 100px;
+    border-radius: 30px;
+    background: #FFD65C;
+    outline: none;
+    pointer-events: none;
+  }
+
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: #034078;
+    cursor: pointer;
+    pointer-events:auto;
+  }
+  .slider::-moz-range-thumb {
+    width: 50px;
+    height: 50px;
+    border-radius: 50% ;
+    background: #034078;
+    cursor: pointer;
+  }
+  .spacer {
+    height: 100px;
+  }
+    </style>
+    <script type="text/javascript">
+    class Op {
+        constructor(pos, ms) {
+          this.pos = pos;
+          this.ms = ms;
+        }
+    }
+    const Mode = {
+      Off: 0,
+      Sine: 1,
+      Pulse: 2,
+      Gag: 3,
+      PulseGag: 4,
+    }
+    const maxMode = Math.max(...Object.entries(Mode).map(o=>o[1]))
+    const modeToName = Object.fromEntries(
+      Object.entries(Mode)
+      .map(([k,v]) => [v,k]));
+    const n_sliders = 3;
+    var prec = -1;
+    var ws = null;
+    function ge(s){ return document.getElementById(s);}
+    function scheduleReconnect() {
+      setTimeout(startSocket, 1000);
+    }
+    function startSocket() {
+      ws = new WebSocket('ws://'+document.location.host+'/ws',['arduino']);
+      ws.binaryType = "arraybuffer";
+      ws.onopen = function(e) {
+        updateStatus(1);
+        updateSliders();
+      };
+      ws.onclose = function(e) {
+        updateStatus(0);
+        scheduleReconnect();
+      };
+      ws.onerror = function(e) {
+        updateStatus(0);
+        console.log("ws error", e);
+        scheduleReconnect();
+      };
+      ws.onmessage = function(e) {
+        if (e.data && e.data.byteLength >= 2) {
+          var buf = new ArrayBuffer( 11 );
+          var dv = new DataView(buf);
+
+          a = new Uint16Array(e.data);
+          epoch = a[0];
+          dv.setUint16(1, epoch, true);
+          dv.setBigUint64(3, BigInt(Date.now()), true);
+          ws.send(buf.slice(0, 9));
+          
+          if (e.data.byteLength >=4) {
+            prec = a[1];
+            updateStatus(true);
+          }
+        }
+      };
+    }
+    
+    function updateStatus(s) {
+      el = ge(`status`);
+      el.innerText = (s ? "Connected" : "Disconnected") + " prec=" + prec;
+    }
+
+    function formatLabel(id, val) {
+      switch (id) {
+        case 0: return `Range: ${val}`;
+        case 1: return `Speed: ${val}`;
+        case 2: return `Mode: ${modeToName[val]}`;
+      }
+    }
+
+    function updateLabels() {
+      for (var i = 0; i < n_sliders; ++i) {
+        el = ge(`slider${i}`);
+        label = el.labels[0];
+        val = parseInt(el.value);
+        label.innerText = formatLabel(i, val);
+      }
+    }
+
+    function onBodyLoad(){
+      ge('slider2').max = maxMode
+      updateLabels();
+      startSocket();
+    }
+
+    function updateSliders() {
+        updateLabels();
+        code = gen_code();
+        var buf = new ArrayBuffer( code.length * 4 + 1);
+        var dv = new DataView(buf);
+        dv.setUint8(0, 1);
+        for ( var i = 0; i < code.length; ++i ) {
+          dv.setUint16(1 + i * 4, code[i].pos, true);
+          dv.setUint16(3 + i * 4, code[i].ms / 10, true);
+        }
+        ws.send( buf );
+    }
+
+    function gen_code() {
+      range_scale = 655
+      range = range_scale * parseInt(ge('slider0').value)
+      speed = parseInt(ge('slider1').value)
+      mode = parseInt(ge('slider2').value)
+      
+      code = []
+      t = Math.round(10000 / (((speed / 10) + 1) ** 2));
+
+      switch(mode) {
+        case Mode.Off:
+          break;
+        case Mode.Sine:
+          code.push(new Op(range, t));
+          code.push(new Op(0, t));
+          break;
+        case Mode.Pulse:
+          step = 10 * range_scale;
+          for (let i = step; i <= range; i += step) {
+            code.push(new Op(i, t));
+            code.push(new Op(i - step, t));
+          }
+          code.push(new Op(range, t));
+          for (let i = range; i >= step; i -= step) {
+            code.push(new Op(i - step, t));
+            code.push(new Op(i, t));
+          }
+          code.push(new Op(0, t));
+          break;
+        case Mode.Gag:
+          code.push(new Op(0, speed * 300));
+          code.push(new Op(range, speed * 100));
+          code.push(new Op(range, speed * 1000));
+          code.push(new Op(0, speed * 50));
+          break;
+        case Mode.PulseGag:
+          code.push(new Op(0, speed * 300));
+
+          speed_lim = Math.min(speed, 20)
+          t = Math.round(10000 / (((speed_lim / 10) + 1) ** 2));
+
+          step = 10 * range_scale;
+          for (let i = step; i <= range; i += step) {
+            code.push(new Op(i, t));
+            code.push(new Op(i - step, t));
+          }
+          
+          tg = 1500
+
+          for (let i = 0; i <= speed * 1000; i += tg * 2) {
+            code.push(new Op(range - step / 2, tg));
+            code.push(new Op(range, tg));
+          }
+
+          for (let i = range; i >= step; i -= step) {
+            code.push(new Op(i - step, t));
+            code.push(new Op(i, t));
+          }
+
+          code.push(new Op(range, speed * 100));
+          code.push(new Op(0, speed * 50));
+          break;
+      }
+      ge('code').innerText = JSON.stringify(code);
+      return code;
+    }
+    </script>
+  </head>
+  <body id="body" onload="onBodyLoad()">
+    <input type="range" onchange="updateSliders()" id="slider0" min="0" max="100" step="1" value ="10" class="slider">
+    <label for="slider0">RANGE</label>
+    <div class="spacer"></div>
+    <input type="range" onchange="updateSliders()" id="slider1" min="1" max="100" step="1" value ="10" class="slider">
+    <label for="slider1">SPEED</label>
+    <div class="spacer"></div>
+    <input type="range" onchange="updateSliders()" id="slider2" min="0" max="1" step="1" value ="0" class="slider">
+    <label for="slider2">MODE: Off</label>
+    <br><b><span id='status'>Loading</span></b>
+    <br><span><b>Code:</b><span id='code'></span></span>
+  </body>
+</html>
